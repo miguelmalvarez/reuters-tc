@@ -1,0 +1,1 @@
+python -m nltk.downloader stopwords reuters punkt
