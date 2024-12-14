@@ -4,13 +4,16 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 
+#TODO: Support split definition in the oringinal dataset
 class DatasetLoader(ABC):
     """Abstract base class for dataset loading and preparation."""
     
     def __init__(self):
         self.mlb = MultiLabelBinarizer()
-        self.data: pd.DataFrame = None
-        self.encoded_labels: np.ndarray = None
+        self.train_data: pd.DataFrame = None
+        self.test_data: pd.DataFrame = None
+        self.train_encoded_labels: np.ndarray = None
+        self.test_encoded_labels: np.ndarray = None
         
     @abstractmethod
     def load(self) -> pd.DataFrame:
@@ -27,9 +30,10 @@ class DatasetLoader(ABC):
         Returns:
             Tuple[pd.DataFrame, np.ndarray]: (processed dataframe, encoded labels)
         """
-        self.data = self.load()
-        self.encoded_labels = self._encode_labels(self.data['labels'])
-        return self.data, self.encoded_labels
+        self.train_data, self.test_data = self.load()
+        self.train_encoded_labels = self._encode_labels(self.train_data['labels'])
+        self.test_encoded_labels = self._encode_labels(self.test_data['labels'])
+        return self.train_data, self.test_data, self.train_encoded_labels, self.test_encoded_labels
     
     def _encode_labels(self, labels: List[List[str]]) -> np.ndarray:
         """Convert list of label lists to multi-hot encoded matrix.
@@ -74,15 +78,34 @@ class ReutersDatasetLoader(DatasetLoader):
         Returns:
             pd.DataFrame: DataFrame with columns ['document_id', 'content', 'labels']
         """
-        contents = []
-        labels = []
+        train_ids = []
+        train_contents = []
+        train_labels = []
+
+        test_ids = []
+        test_contents = []
+        test_labels = []
         
         for doc_id in self.document_ids:
-            contents.append(self.reuters.raw(doc_id))
-            labels.append(self.reuters.categories(doc_id))
+            if doc_id.startswith('train'):
+                train_contents.append(self.reuters.raw(doc_id))
+                train_labels.append(self.reuters.categories(doc_id))
+                train_ids.append(doc_id)
+            else:
+                test_contents.append(self.reuters.raw(doc_id))
+                test_labels.append(self.reuters.categories(doc_id))
+                test_ids.append(doc_id)
         
-        return pd.DataFrame({
-            'document_id': self.document_ids,
-            'content': contents,
-            'labels': labels
+        train_data = pd.DataFrame({
+            'document_id': train_ids,
+            'content': train_contents,
+            'labels': train_labels
         })
+
+        test_data = pd.DataFrame({
+            'document_id': test_ids,
+            'content': test_contents,
+            'labels': test_labels
+        })
+
+        return train_data, test_data
