@@ -1,7 +1,7 @@
 from typing import List, Dict
 import numpy as np
-from sklearn.metrics import classification_report, accuracy_score
-from models.base import BaseClassifier
+from sklearn.metrics import classification_report
+from modelling.base import BaseClassifier
 
 class ModelTrainer:
     """Handles training and evaluation of multiple classifiers"""
@@ -21,11 +21,8 @@ class ModelTrainer:
         for classifier in self.classifiers:
             print(f"\nEvaluating {classifier.name}...")
             y_pred = classifier.predict(X_test)
-            
-            self.results[classifier.name] = {
-                'accuracy': accuracy_score(y_test, y_pred),
-                'report': classification_report(y_test, y_pred, output_dict=True, zero_division=0.0)
-            }
+            self.results[classifier.name] = classification_report(y_test, y_pred, 
+                                                                  output_dict=True, zero_division=0.0)
         
         return self.results
     
@@ -34,12 +31,5 @@ class ModelTrainer:
         print("\n=== Classification Results ===")
         for name, result in self.results.items():
             print(f"\n{name}:")
-            print(f"Accuracy: {result['accuracy']:.4f}")
-            print("\nClassification Report:")
-            report = result['report']
-            for label in report:
-                if label in ['micro avg', 'macro avg', 'weighted avg']:
-                    print(f"\n{label}:")
-                    print(f"  Precision: {report[label]['precision']:.4f}")
-                    print(f"  Recall: {report[label]['recall']:.4f}")
-                    print(f"  F1-score: {report[label]['f1-score']:.4f}") 
+            for label in ['micro avg', 'macro avg']:
+                print(f"{label}: Precision: {result[label]['precision']:.4f} | Recall: {result[label]['recall']:.4f} | F1-score: {result[label]['f1-score']:.4f}") 

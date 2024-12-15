@@ -1,5 +1,7 @@
 from dataset import ReutersDatasetLoader
-from models.sklearn_classifiers import (
+import pandas as pd
+from datetime import datetime
+from modelling.sklearn_classifiers import (
     LogisticRegressionClassifier,
     SVMClassifier,
     NaiveBayesClassifier
@@ -33,8 +35,9 @@ def run_models(train_data, train_encoded_labels, test_data, test_encoded_labels)
         test_size=0.2, random_state=42
     )
     
+    # TODO: Refactor representation in a different step
     # Vectorize text
-    vectorizer = TfidfVectorizer(max_features=5000)
+    vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2), stop_words='english')
     X_train_vec = vectorizer.fit_transform(X_train)
     X_test_vec = vectorizer.transform(X_test)
     
@@ -45,28 +48,44 @@ def run_models(train_data, train_encoded_labels, test_data, test_encoded_labels)
         NaiveBayesClassifier()
     ]
     
-    # Train and evaluate
+    # Train and evaluate with validation set
+    print("Training and evaluating with validation set ------------------------------")
     trainer = ModelTrainer(classifiers)
     trainer.train_all(X_train_vec, y_train)
-    trainer.evaluate_all(X_test_vec, y_test)
+    results_validation = trainer.evaluate_all(X_test_vec, y_test)
     trainer.print_results()
 
-
-    #Full data training
+    # Full data training and evaluation with train and test set
+    print("Training with full train data --------------------------------------------")
     X_train_vec = vectorizer.fit_transform(train_data['content'])
-    X_test_vec = vectorizer.transform(test_data['content'])
     y_train = train_encoded_labels
-    y_test= test_encoded_labels
     trainer.train_all(X_train_vec, y_train)
-    trainer.evaluate_all(X_test_vec, y_test)
+    
+    print("Evaluating with training set (all used for training) ---------------------")
+    # Evaluate with training set (all used for training)
+    results_train = trainer.evaluate_all(X_train_vec, y_train)
     trainer.print_results()
 
+    print("Evaluating with (unseen) test set ----------------------------------------")
+    # Evaluate with (unseen) test set
+    X_test_vec = vectorizer.transform(test_data['content'])
+    y_test= test_encoded_labels
+    results_test = trainer.evaluate_all(X_test_vec, y_test)
+    trainer.print_results()
 
-    #Run test set
-    # X_eval_vec = vectorizer.transform(test_data['content'])
-    # y_eval = test_encoded_labels
-    # trainer.evaluate_all(X_test_vec, y_test)
-    # trainer.print_results()
+    results_df = pd.DataFrame([
+        results_train,
+        results_validation,
+        results_test
+    ])
+    
+    #TODO: Record evaluation results properly
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_df.to_csv(f"./reports/results_{timestamp}.csv")
+
+    # TODO: Save models 
+
+    # TODO: Select best model
 
 if __name__ == "__main__":
     train_data, test_data, train_encoded_labels, test_encoded_labels = load_reuters()
