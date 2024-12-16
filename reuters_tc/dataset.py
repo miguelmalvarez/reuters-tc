@@ -31,20 +31,10 @@ class DatasetLoader(ABC):
             Tuple[pd.DataFrame, np.ndarray]: (processed dataframe, encoded labels)
         """
         self.train_data, self.test_data = self.load()
-        self.train_encoded_labels = self._encode_labels(self.train_data['labels'])
-        self.test_encoded_labels = self._encode_labels(self.test_data['labels'])
+        self.mlb.fit(self.train_data['labels'])
+        self.train_encoded_labels = self.mlb.transform(self.train_data['labels'])
+        self.test_encoded_labels = self.mlb.transform(self.test_data['labels'])
         return self.train_data, self.test_data, self.train_encoded_labels, self.test_encoded_labels
-    
-    def _encode_labels(self, labels: List[List[str]]) -> np.ndarray:
-        """Convert list of label lists to multi-hot encoded matrix.
-        
-        Args:
-            labels: List of label lists for each document
-            
-        Returns:
-            np.ndarray: Multi-hot encoded label matrix
-        """
-        return self.mlb.fit_transform(labels)
     
     @property
     def label_names(self) -> List[str]:
