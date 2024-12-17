@@ -2,40 +2,52 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Tuple
 import pandas as pd
 import numpy as np
+from datasets import Dataset, DatasetDict
 from sklearn.preprocessing import MultiLabelBinarizer
 
-#TODO: Support split definition in the oringinal dataset
 class DatasetLoader(ABC):
     """Abstract base class for dataset loading and preparation."""
     
     def __init__(self):
         self.mlb = MultiLabelBinarizer()
-        self.train_data: pd.DataFrame = None
-        self.test_data: pd.DataFrame = None
-        self.train_encoded_labels: np.ndarray = None
-        self.test_encoded_labels: np.ndarray = None
+        self.dataset = None
         
     @abstractmethod
-    def load(self) -> pd.DataFrame:
-        """Load the raw dataset.
+    def load(self) -> DatasetDict:
+        """Load the raw dataset into self.dataset and return it.
         
         Returns:
             pd.DataFrame: DataFrame containing at least 'content' and 'labels' columns
         """
         pass
-    
-    def prepare(self) -> Tuple[pd.DataFrame, np.ndarray]:
-        """Prepare the dataset by loading and encoding labels.
+  
+    def save(self, path: str):
+        """Save the dataset to a file.
         
-        Returns:
-            Tuple[pd.DataFrame, np.ndarray]: (processed dataframe, encoded labels)
+        Args:
+            path: Path where to save the dataset
+            
+        Raises:
+            RuntimeError: If dataset hasn't been loaded yet
         """
-        self.train_data, self.test_data = self.load()
-        self.mlb.fit(self.train_data['labels'])
-        self.train_encoded_labels = self.mlb.transform(self.train_data['labels'])
-        self.test_encoded_labels = self.mlb.transform(self.test_data['labels'])
-        return self.train_data, self.test_data, self.train_encoded_labels, self.test_encoded_labels
-    
+        if self.dataset is None:
+            raise RuntimeError("Dataset not loaded. Please call load() first before saving.")
+        self.dataset.save_to_disk(path)
+
+    def load_from_disk(self, path: str) -> DatasetDict:
+        """Load a previously saved dataset from disk.
+        
+        Args:
+            path: Path to the saved dataset
+            
+        Returns:
+            DatasetDict: The loaded dataset
+        """
+        if self.dataset is not None:
+            raise RuntimeError("Dataset already loaded. Overriding previous dataset.")
+        self.dataset = DatasetDict.load_from_disk(path)
+        return self.dataset
+        
     @property
     def label_names(self) -> List[str]:
         """Get the names of encoded labels."""
@@ -43,9 +55,20 @@ class DatasetLoader(ABC):
             raise ValueError("Labels haven't been encoded yet. Call prepare() first.")
         return list(self.mlb.classes_)
 
+    def id2label(self, id: str) -> str:
+        """Get the label name for a given id."""
+        if self.mlb.classes_ is None:
+            raise ValueError("Labels haven't been encoded yet. Call prepare() first.")
+        return self.mlb.classes_[id]
+    
+    def label2id(self, label: str) -> int:
+        """Get the id for a given label."""
+        if self.mlb.classes_ is None:
+            raise ValueError("Labels haven't been encoded yet. Call prepare() first.")
+        return np.where(self.mlb.classes_ == label)[0][0]
 
 from nltk.corpus import reuters
-import nltk
+from nltk import download
 class ReutersDatasetLoader(DatasetLoader):
     """Loader for the Reuters dataset."""
     
@@ -58,15 +81,15 @@ class ReutersDatasetLoader(DatasetLoader):
         except ImportError:
             raise ImportError("NLTK is required. Please install it with 'pip install nltk'")
         except LookupError: 
-            nltk.download('reuters')
+            download('reuters')
             self.reuters = reuters
             self.document_ids = reuters.fileids()
-    
-    def load(self) -> pd.DataFrame:
+
+    def load(self) -> DatasetDict:
         """Load Reuters documents and their categories.
         
         Returns:
-            pd.DataFrame: DataFrame with columns ['document_id', 'content', 'labels']
+            DatasetDict: DatasetDict with train and test datasets
         """
         train_ids = []
         train_contents = []
@@ -86,16 +109,28 @@ class ReutersDatasetLoader(DatasetLoader):
                 test_labels.append(self.reuters.categories(doc_id))
                 test_ids.append(doc_id)
         
-        train_data = pd.DataFrame({
+        # TODO: Move this away from dataset?
+        # Encoding labels
+        self.mlb.fit(train_labels)
+        train_encoded_labels = self.mlb.transform(train_labels)
+        test_encoded_labels = self.mlb.transform(test_labels)
+
+        encoded_train_data = pd.DataFrame({
             'document_id': train_ids,
             'content': train_contents,
-            'labels': train_labels
+            'labels': train_encoded_labels.tolist()
         })
 
-        test_data = pd.DataFrame({
+        encoded_test_data = pd.DataFrame({
             'document_id': test_ids,
             'content': test_contents,
-            'labels': test_labels
+            'labels': test_encoded_labels.tolist()
         })
+        
+        # Create DatasetDict
+        train_dataset = Dataset.from_pandas(encoded_train_data)
+        test_dataset = Dataset.from_pandas(encoded_test_data)
 
-        return train_data, test_data
+        self.dataset = DatasetDict({'train': train_dataset, 
+                                    'test':test_dataset})
+        return self.dataset

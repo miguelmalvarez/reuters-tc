@@ -1,6 +1,7 @@
 from typing import List, Dict
 import numpy as np
 from sklearn.metrics import classification_report
+from datasets import DatasetDict, Dataset
 from modelling.base import BaseClassifier
 
 class ModelTrainer:
@@ -10,20 +11,22 @@ class ModelTrainer:
         self.classifiers = classifiers
         self.results = {}
     
-    def train_all(self, X_train: np.ndarray, y_train: np.ndarray):
+    def train_all(self, vectorized_dataset: Dataset):
         """Train all classifiers"""
         for classifier in self.classifiers:
-            print(f"Training {classifier.name}...")
+            print(f"Training {classifier.name}... with {len(vectorized_dataset)} samples and {len(vectorized_dataset['labels'][0])} labels")
+            X_train = vectorized_dataset['content']
+            y_train = vectorized_dataset['labels']
             classifier.train(X_train, y_train)
     
-    def evaluate_all(self, X_test: np.ndarray, y_test: np.ndarray) -> Dict:
+    def evaluate_all(self, vectorized_dataset: Dataset) -> Dict:
         """Evaluate all classifiers and store results"""
         for classifier in self.classifiers:
             print(f"\nEvaluating {classifier.name}...")
+            X_test = vectorized_dataset['content']
+            y_test = vectorized_dataset['labels']
             y_pred = classifier.predict(X_test)
-            self.results[classifier.name] = classification_report(y_test, y_pred, 
-                                                                  output_dict=True, zero_division=0.0)
-        
+            self.results[classifier.name] = classification_report(y_test, y_pred, output_dict=True, zero_division=0.0)
         return self.results
     
     def print_results(self):

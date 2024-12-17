@@ -1,6 +1,9 @@
 from dataset import ReutersDatasetLoader
 import pandas as pd
+from datasets import DatasetDict, concatenate_datasets
+from sklearn.model_selection import train_test_split
 from datetime import datetime
+from datasets import Dataset
 from modelling.sklearn_classifiers import (
     LogisticRegressionClassifier,
     SVMClassifier,
@@ -14,63 +17,87 @@ def load_reuters():
     loader = ReutersDatasetLoader()
     
     # Load and prepare the dataset
-    train_data, test_data, train_encoded_labels, test_encoded_labels = loader.prepare()
-    
+    dataset = loader.load()
+    num_labels = len(loader.label_names)
+
     # Print some basic information
-    print(f"Number of training documents: {len(train_data)}")
-    print(f"Number of test documents: {len(test_data)}")
-    print(f"Number of unique labels: {len(loader.label_names)}")
-    print(f"Labels encoded shape: {train_encoded_labels.shape}")
-    
+    print(f"Number of training documents: {len(dataset['train'])}")
+    print(f"Number of test documents: {len(dataset['test'])}")
+    print(f"Number of unique labels: {num_labels}")
+   
     # Print first document example
     print("\nFirst document example:")
-    print(f"Document ID: {train_data['document_id'][0]}")
-    print(f"Labels: {train_data['labels'][0]}")
-    return train_data, test_data, train_encoded_labels, test_encoded_labels
-
-def run_models(train_data, train_encoded_labels, test_data, test_encoded_labels):
-    from sklearn.model_selection import train_test_split
-    X_train, X_test, y_train, y_test = train_test_split(
-        train_data['content'], train_encoded_labels, 
-        test_size=0.2, random_state=42
-    )
+    print(dataset['train'][0])
     
-    # TODO: Refactor representation in a different step
-    # Vectorize text
+    return dataset, num_labels
+
+def tokenize_function(examples):
     vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2), stop_words='english')
-    X_train_vec = vectorizer.fit_transform(X_train)
-    X_test_vec = vectorizer.transform(X_test)
+    vectorizer.fit(examples['content'])
+    return vectorizer
+
+def prepare_dataset(dataset: DatasetDict):
+
+    # Learning tokenization based on the whole original training set
+    vectorizer = tokenize_function(dataset['train'])
+
+    # Split original train set into train and validation
+    split_dataset = dataset['train'].train_test_split(test_size=0.2, seed=42)
+    train_dataset = split_dataset['train']
+    validation_dataset = split_dataset['test']
+    test_dataset = dataset['test']
+
+    vectorized_train_content = vectorizer.transform(train_dataset['content']).toarray().tolist()
+    vectorized_validation_content = vectorizer.transform(validation_dataset['content']).toarray().tolist()
+    vectorized_test_content = vectorizer.transform(test_dataset['content']).toarray().tolist()
+
+    vectorized_train_dataset = Dataset.from_dict({'content': vectorized_train_content,
+                                                  'labels': train_dataset['labels'],
+                                                  'document_id': train_dataset['document_id']})
+    vectorized_validation_dataset = Dataset.from_dict({'content': vectorized_validation_content,
+                                                  'labels': validation_dataset['labels'],
+                                                  'document_id': validation_dataset['document_id']})
+    vectorized_test_dataset = Dataset.from_dict({'content': vectorized_test_content,
+                                                 'labels': test_dataset['labels'],
+                                                 'document_id': test_dataset['document_id']})
+    
+    
+    vectorized_dataset = DatasetDict({'train': vectorized_train_dataset,
+                                      'valid': vectorized_validation_dataset,
+                                      'test': vectorized_test_dataset})
+
+    return vectorized_dataset
+
+def run_models(vectorized_dataset: DatasetDict, num_labels: int):
     
     # Initialize classifiers
     classifiers = [
         LogisticRegressionClassifier(),
         SVMClassifier(),
         NaiveBayesClassifier()
-    ]
-    
-    # Train and evaluate with validation set
-    print("Training and evaluating with validation set ------------------------------")
+      ]
+
     trainer = ModelTrainer(classifiers)
-    trainer.train_all(X_train_vec, y_train)
-    results_validation = trainer.evaluate_all(X_test_vec, y_test)
+    # Training with train split and evaluating with validation set
+    print("Training with train split and evaluating with validation set -----------------------")
+    trainer.train_all(vectorized_dataset['train'])
+    results_validation = trainer.evaluate_all(vectorized_dataset['valid'])
     trainer.print_results()
+
+    full_train_dataset = concatenate_datasets([vectorized_dataset['train'], vectorized_dataset['valid']])
 
     # Full data training and evaluation with train and test set
     print("Training with full train data --------------------------------------------")
-    X_train_vec = vectorizer.fit_transform(train_data['content'])
-    y_train = train_encoded_labels
-    trainer.train_all(X_train_vec, y_train)
+    trainer.train_all(full_train_dataset)
     
     print("Evaluating with training set (all used for training) ---------------------")
     # Evaluate with training set (all used for training)
-    results_train = trainer.evaluate_all(X_train_vec, y_train)
+    results_train = trainer.evaluate_all(full_train_dataset)
     trainer.print_results()
 
     print("Evaluating with (unseen) test set ----------------------------------------")
     # Evaluate with (unseen) test set
-    X_test_vec = vectorizer.transform(test_data['content'])
-    y_test= test_encoded_labels
-    results_test = trainer.evaluate_all(X_test_vec, y_test)
+    results_test = trainer.evaluate_all(vectorized_dataset['test'])
     trainer.print_results()
 
     results_df = pd.DataFrame([
@@ -88,5 +115,6 @@ def run_models(train_data, train_encoded_labels, test_data, test_encoded_labels)
     # TODO: Select best model
 
 if __name__ == "__main__":
-    train_data, test_data, train_encoded_labels, test_encoded_labels = load_reuters()
-    run_models(train_data, train_encoded_labels, test_data, test_encoded_labels)
+    dataset, num_labels = load_reuters()
+    vectorized_dataset = prepare_dataset(dataset)
+    run_models(vectorized_dataset, num_labels)
