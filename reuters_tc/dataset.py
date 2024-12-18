@@ -112,19 +112,21 @@ class ReutersDatasetLoader(DatasetLoader):
         # TODO: Move this away from dataset?
         # Encoding labels
         self.mlb.fit(train_labels)
-        train_encoded_labels = self.mlb.transform(train_labels)
-        test_encoded_labels = self.mlb.transform(test_labels)
+
+        # Float to ensure compatibility with HF models
+        train_encoded_labels = [[float(x) for x in row] for row in self.mlb.transform(train_labels)]
+        test_encoded_labels = [[float(x) for x in row] for row in self.mlb.transform(test_labels)]
 
         encoded_train_data = pd.DataFrame({
             'document_id': train_ids,
             'content': train_contents,
-            'labels': train_encoded_labels.tolist()
+            'labels': train_encoded_labels
         })
 
         encoded_test_data = pd.DataFrame({
             'document_id': test_ids,
             'content': test_contents,
-            'labels': test_encoded_labels.tolist()
+            'labels': test_encoded_labels
         })
         
         # Create DatasetDict

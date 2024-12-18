@@ -31,15 +31,16 @@ def load_reuters():
     
     return dataset, num_labels
 
+
 def tokenize_function(examples):
     vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2), stop_words='english')
     vectorizer.fit(examples['content'])
-    return vectorizer
+    return lambda x: vectorizer.transform(x['content']).toarray().tolist()
 
 def prepare_dataset(dataset: DatasetDict):
 
     # Learning tokenization based on the whole original training set
-    vectorizer = tokenize_function(dataset['train'])
+    vectorize = tokenize_function(dataset['train'])
 
     # Split original train set into train and validation
     split_dataset = dataset['train'].train_test_split(test_size=0.2, seed=42)
@@ -47,9 +48,9 @@ def prepare_dataset(dataset: DatasetDict):
     validation_dataset = split_dataset['test']
     test_dataset = dataset['test']
 
-    vectorized_train_content = vectorizer.transform(train_dataset['content']).toarray().tolist()
-    vectorized_validation_content = vectorizer.transform(validation_dataset['content']).toarray().tolist()
-    vectorized_test_content = vectorizer.transform(test_dataset['content']).toarray().tolist()
+    vectorized_train_content = vectorize(train_dataset)
+    vectorized_validation_content = vectorize(validation_dataset)
+    vectorized_test_content = vectorize(test_dataset)
 
     vectorized_train_dataset = Dataset.from_dict({'content': vectorized_train_content,
                                                   'labels': train_dataset['labels'],
@@ -72,9 +73,9 @@ def run_models(vectorized_dataset: DatasetDict, num_labels: int):
     
     # Initialize classifiers
     classifiers = [
-        LogisticRegressionClassifier(),
-        SVMClassifier(),
-        NaiveBayesClassifier()
+        # LogisticRegressionClassifier(),
+        # NaiveBayesClassifier(),
+        SVMClassifier()
       ]
 
     trainer = ModelTrainer(classifiers)
