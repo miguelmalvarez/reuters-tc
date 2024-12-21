@@ -1,0 +1,25 @@
+[project]
+name = "reuters-tc"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.2.1",
+    "datasets>=3.2.0",
+    "evaluate>=0.4.3",
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.9.3",
+    "nltk>=3.9.1",
+    "numpy>=2.0.2",
+    "pandas>=2.2.3",
+    "scikit-learn>=1.6.0",
+    "spacy>=3.8.3",
+    "torch>=2.5.1",
+    "transformers>=4.47.0",
+]
+
+[dependency-groups]
+dev = [
+    "pip>=24.3.1",
+]
