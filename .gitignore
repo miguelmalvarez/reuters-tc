@@ -91,3 +91,9 @@ ENV/
 
 #uv.lock
 uv.lock
+
+# Reports
+reports/*
+
+# Models
+models/*

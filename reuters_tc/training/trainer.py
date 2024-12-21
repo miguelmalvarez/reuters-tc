@@ -15,9 +15,7 @@ class ModelTrainer:
         """Train all classifiers"""
         for classifier in self.classifiers:
             print(f"Training {classifier.name}... with {len(vectorized_dataset)} samples and {len(vectorized_dataset['labels'][0])} labels")
-            X_train = vectorized_dataset['content']
-            y_train = vectorized_dataset['labels']
-            classifier.train(X_train, y_train)
+            classifier.train(vectorized_dataset)
     
     def evaluate_all(self, vectorized_dataset: Dataset) -> Dict:
         """Evaluate all classifiers and store results"""

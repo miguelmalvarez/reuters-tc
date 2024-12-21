@@ -11,7 +11,7 @@ class BaseClassifier(ABC):
     
     @abstractmethod
     def train(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Train the classifier"""
+        """Train the classifier (and vectorizer if needed"""
         pass
     
     @abstractmethod

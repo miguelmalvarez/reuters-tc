@@ -55,12 +55,14 @@ class DatasetLoader(ABC):
             raise ValueError("Labels haven't been encoded yet. Call prepare() first.")
         return list(self.mlb.classes_)
 
+    @property
     def id2label(self, id: str) -> str:
         """Get the label name for a given id."""
         if self.mlb.classes_ is None:
             raise ValueError("Labels haven't been encoded yet. Call prepare() first.")
         return self.mlb.classes_[id]
     
+    @property
     def label2id(self, label: str) -> int:
         """Get the id for a given label."""
         if self.mlb.classes_ is None:
@@ -109,7 +111,6 @@ class ReutersDatasetLoader(DatasetLoader):
                 test_labels.append(self.reuters.categories(doc_id))
                 test_ids.append(doc_id)
         
-        # TODO: Move this away from dataset?
         # Encoding labels
         self.mlb.fit(train_labels)
 
